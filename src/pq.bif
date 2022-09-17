@@ -1,0 +1,126 @@
+%%{
+#include <Plugin.h>
+#include <zeek/Frame.h>
+#include <zeek/Trigger.h>
+#include <libpq-fe.h>
+
+using plugin::Zeek_PQ::PQConn;
+using plugin::Zeek_PQ::PQResult;
+
+PQConn* to_pq_conn(zeek::Val* h)
+    {
+        auto rval = dynamic_cast<PQConn*>(h);
+        if ( ! rval )
+            zeek::emit_builtin_error("to_pq_conn() failed");
+
+        return rval;
+    }
+
+PQResult* to_pq_result(zeek::Val* r)
+    {
+        auto rval = dynamic_cast<PQResult*>(r);
+        if ( ! rval )
+            zeek::emit_builtin_error("to_pq_result() failed");
+
+        return rval;
+    }
+
+void emit_builtin_error(PGconn* pg_conn, const char *msg)
+    {
+    char *pq_error = PQerrorMessage(pg_conn);
+    zeek::emit_builtin_error(zeek::util::fmt("%s: %s", msg, pq_error));
+    }
+
+%%}
+
+module PQ;
+
+# Connect to a Postgres database, non-blocking, PQconnectdb, blocking for now.
+#
+# TODO: Make non-blocking.
+function PQ::connect%(conninfo: string &default=""%): opaque of PQ::Conn
+    %{
+    PGconn *pg_conn = PQconnectdb(conninfo->CheckString());
+    if ( ! pg_conn )
+        {
+        emit_builtin_error(pg_conn, "Failed to connect");
+        return zeek::Val::nil;
+        }
+
+    ConnStatusType status = PQstatus(pg_conn);
+    if ( status != CONNECTION_OK )
+        {
+        emit_builtin_error(pg_conn, "Failed to connect");
+        return zeek::Val::nil;
+        }
+
+    return zeek::make_intrusive<PQConn>(pg_conn);
+    %}
+
+# Run the given command asynchronously
+#
+# XXX: Consider pipelining: For now we support just a single query/command
+#      per connection object.
+function PQ::exec%(c: opaque of PQ::Conn, command: string%): opaque of PQ::Result
+    %{
+    auto trigger = frame->GetTrigger();
+    if ( ! trigger )
+        {
+        zeek::emit_builtin_error("Call PQ::exec with when");
+        return zeek::Val::nil;
+        }
+
+
+    PQConn *pq_conn = to_pq_conn(c);
+    int r = pq_conn->SendQuery(command->CheckString());
+    if ( r != 1 )
+        return nullptr;
+
+    pq_conn->ExpectResult(trigger, frame->GetTriggerAssoc());
+    trigger->Hold();
+    frame->SetDelayed();
+
+    return nullptr;
+    %}
+
+# Run the given execparams asynchronously
+#
+# XXX: Consider pipelining: For now we support just a single query/command
+#      per connection object.
+function PQ::execParams%(c: opaque of PQ::Conn, command: string, ...%): opaque of PQ::Result
+    %{
+    auto trigger = frame->GetTrigger();
+    if ( ! trigger )
+        {
+        zeek::emit_builtin_error("Call PQ::exec with when");
+        return zeek::Val::nil;
+        }
+
+    const auto& bif_args = @ARGS@;
+    ValPList args(bif_args->size() - 2);
+    for (auto i = 2u; i < bif_args->size(); ++i)
+        args.push_back((*bif_args)[i].get());
+
+    PQConn *pq_conn = to_pq_conn(c);
+    int r = pq_conn->SendQueryParams(command->CheckString(), args);
+    if ( r != 1 )
+        return nullptr;
+
+    pq_conn->ExpectResult(trigger, frame->GetTriggerAssoc());
+    trigger->Hold();
+    frame->SetDelayed();
+
+    return nullptr;
+    %}
+
+# Returns all rows in a PQ::Result a a vector of anonymous records
+#
+# XXX: is that possible?
+# TODO: Implement row_type logic so we don't need to do dynamic record types.
+#
+function PQ::fetchAll%(r: opaque of PQ::Result, row_type: any &default=0%): any_vec
+    %{
+    auto pq_result = to_pq_result(r);
+
+    return pq_result->FetchAll();
+    %}

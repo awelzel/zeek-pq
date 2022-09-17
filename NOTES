@@ -1,0 +1,8 @@
+* What about pooling???
+** Should we do pooling with Zeek script?
+** Do the implementation outside of C++.
+** Blocking with when and timeout?
+
+  when ( local c = pq_get_from_pool(pool) ) {
+  }
+
