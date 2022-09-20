@@ -1,4 +1,4 @@
-# @TEST-DOC: Fetch a single row with dynamic record types.
+# @TEST-DOC: Convert a string to an addr via PQ::execParams() - fetches a single row and uses "dynamic" typing
 # @TEST-EXEC: zeek %INPUT > output
 # @TEST-EXEC: btest-diff output
 

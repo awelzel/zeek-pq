@@ -4,4 +4,8 @@ Zeek::PQ - Low-level PostgreSQL access (dynamic, version)
     [Function] PQ::exec
     [Function] PQ::execParams
     [Function] PQ::fetchAll
+    [Function] PQ::ntuples
+    [Function] PQ::cmdTuples
+    [Function] PQ::resStatus
+    [Function] PQ::resultErrorMessage
 

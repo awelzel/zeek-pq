@@ -79,6 +79,10 @@ public:
 	virtual ~PQResult() { }
 
 	zeek::VectorValPtr FetchAll();
+	zeek::ValPtr Ntuples();
+	zeek::ValPtr CmdTuples();
+	zeek::StringValPtr ResStatus();
+	zeek::StringValPtr ResultErrorMessage();
 
 	broker::expected<broker::data> DoSerialize() const override { return broker::ec::invalid_data; }
 

@@ -5,6 +5,7 @@
 #include <zeek/Trigger.h>
 #include <zeek/ZeekString.h>
 #include <zeek/iosource/Manager.h>
+#include <cstdio>
 #include <iomanip> // std::get_time
 
 extern "C"
@@ -18,6 +19,9 @@ extern "C"
 #include <catalog/pg_type.h>
 	}
 // clang-format on
+
+// Postgres headers doing things to it.
+#undef snprintf
 
 namespace plugin
 	{
@@ -179,6 +183,8 @@ void PQConn::Process()
 
 	// We need to call PQgetResult to clear the command status and expect
 	// it to return null now, print an error for any non-null results we see.
+	//
+	// For pipelining support, this would need to change.
 	while ( pg_result = PQgetResult(pg_conn.get()), pg_result )
 		{
 		zeek::reporter->Error("Unexpected non-null PQgetResult() response");
@@ -186,7 +192,7 @@ void PQConn::Process()
 		}
 
 	trigger->Cache(trigger_assoc, pq_result);
-	Unref(pq_result);
+	Unref(pq_result); // The when/trigger owns the reuslt.
 	trigger->Release();
 
 	trigger = nullptr;
@@ -207,12 +213,14 @@ int PQConn::SendQuery(const char* command)
 int PQConn::SendQueryParams(const char* command, zeek::ValPList& args)
 	{
 	const Oid* param_types = nullptr;
-	std::vector<const char*> param_values{args.size()};
-	for ( auto& pv : param_values )
-		pv = nullptr;
+	std::vector<const char*> param_values{args.size(), nullptr};
 
-	const int* param_lengths = nullptr;
-	const int* param_formats = nullptr;
+	// Dynamically allocated storage for stringified parameters
+	constexpr int scratch_size = 32;
+	std::vector<std::vector<char>> scratch_buffers;
+
+	const int* param_lengths = nullptr;  // ignored, text only
+	const int* param_formats = nullptr;  // ignored, text only
 	int result_format = 0; // text format
 
 	int i = 0;
@@ -228,13 +236,21 @@ int PQConn::SendQueryParams(const char* command, zeek::ValPList& args)
 				param_values[i] = a->AsAddr().AsString().c_str();
 				break;
 				}
+			case zeek::TYPE_COUNT:
+				{
+				auto& buf = scratch_buffers.emplace_back(scratch_size, '\0');
+				std::snprintf(buf.data(), buf.size(), "%ld", a->AsCount());
+				param_values[i] = buf.data();
+				break;
+				}
 			case zeek::TYPE_STRING:
 				{
 				param_values[i] = a->AsString()->CheckString();
 				break;
 				}
 			default:
-				zeek::reporter->Error("arg[%d] %p tag=%d not implemented", i, a, t->Tag());
+				zeek::reporter->Error("Zeek to PQ: arg[%d] %p tag=%d not implemented", i, a,
+				                      t->Tag());
 			}
 
 		i++;
@@ -285,7 +301,8 @@ zeek::VectorValPtr PQResult::FetchAll()
 		{
 		char* name = PQfname(r, i);
 		Oid oid = PQftype(r, i);
-		PLUGIN_DBG_LOG(plugin, "i=%d name=%s oid=%d", i, name, oid);
+		int binary_format = PQfformat(r, i) == 1;
+		PLUGIN_DBG_LOG(plugin, "i=%d name=%s oid=%d binary=%d", i, name, oid, binary_format);
 
 		types->push_back(type_decl_for(name, oid));
 		}
@@ -300,6 +317,9 @@ zeek::VectorValPtr PQResult::FetchAll()
 		auto entry = zeek::make_intrusive<zeek::RecordVal>(anonymous_record_type);
 		for ( int j = 0; j < columns; j++ )
 			{
+			if ( PQgetisnull(r, i, j) )
+				continue;
+
 			char* value = PQgetvalue(r, i, j);
 			int len = PQgetlength(r, i, j);
 			PLUGIN_DBG_LOG(plugin, "row=%d column=%d length=%d value=%s", i, j, len, value);
@@ -312,4 +332,25 @@ zeek::VectorValPtr PQResult::FetchAll()
 		}
 
 	return rval;
+	}
+
+zeek::ValPtr PQResult::Ntuples()
+	{
+	return zeek::val_mgr->Count(PQntuples(pg_result.get()));
+	}
+
+zeek::ValPtr PQResult::CmdTuples()
+	{
+	return zeek::val_mgr->Count(atoi(PQcmdTuples(pg_result.get())));
+	}
+
+zeek::StringValPtr PQResult::ResStatus()
+	{
+	ExecStatusType status = PQresultStatus(pg_result.get());
+	return zeek::make_intrusive<zeek::StringVal>(PQresStatus(status));
+	}
+
+zeek::StringValPtr PQResult::ResultErrorMessage()
+	{
+	return zeek::make_intrusive<zeek::StringVal>(PQresultErrorMessage(pg_result.get()));
 	}

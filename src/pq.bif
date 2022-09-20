@@ -70,7 +70,6 @@ function PQ::exec%(c: opaque of PQ::Conn, command: string%): opaque of PQ::Resul
         return zeek::Val::nil;
         }
 
-
     PQConn *pq_conn = to_pq_conn(c);
     int r = pq_conn->SendQuery(command->CheckString());
     if ( r != 1 )
@@ -113,14 +112,54 @@ function PQ::execParams%(c: opaque of PQ::Conn, command: string, ...%): opaque o
     return nullptr;
     %}
 
-# Returns all rows in a PQ::Result a a vector of anonymous records
+# Fetch all rows.
 #
-# XXX: is that possible?
-# TODO: Implement row_type logic so we don't need to do dynamic record types.
+# r: The PQ::Result returned by :zeek:see:`PQ::exec` or :zeek:see:`PQ::execParams`.
+#
+# Returns: A vector of rows with anonymous record types or typed with *row_type*.
 #
 function PQ::fetchAll%(r: opaque of PQ::Result, row_type: any &default=0%): any_vec
     %{
     auto pq_result = to_pq_result(r);
-
+    // TODO: Implement row_type support so we don't need to do dynamic record type creation
+    // for each and every query.
     return pq_result->FetchAll();
+    %}
+
+function PQ::ntuples%(r: opaque of PQ::Result%): count
+    %{
+    auto pq_result = to_pq_result(r);
+    return pq_result->Ntuples();
+    %}
+
+function PQ::cmdTuples%(r: opaque of PQ::Result%): count
+    %{
+    auto pq_result = to_pq_result(r);
+    return pq_result->CmdTuples();
+    %}
+
+# Return the status of the result as string.
+#
+# r: The PQ::Result returned by :zeek:see:`PQ::exec` or :zeek:see:`PQ::execParams`.
+#
+# Return: A string representing the result status.
+#
+# PQresultStatus() and PQresStatus()
+function PQ::resStatus%(r: opaque of PQ::Result%): string
+    %{
+    auto pq_result = to_pq_result(r);
+    return pq_result->ResStatus();
+    %}
+
+# Return the error message of the result, if any.
+#
+# r: The PQ::Result returned by :zeek:see:`PQ::exec` or :zeek:see:`PQ::execParams`.
+#
+# Return: A string representing the result error message.
+#
+# PQresultErrorMessage()
+function PQ::resultErrorMessage%(r: opaque of PQ::Result%): string
+    %{
+    auto pq_result = to_pq_result(r);
+    return pq_result->ResultErrorMessage();
     %}

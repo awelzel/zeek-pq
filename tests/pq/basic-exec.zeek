@@ -1,4 +1,4 @@
-# @TEST-DOC: Fetch a single row with dynamic record types.
+# @TEST-DOC: Fetch a single row. Use dynamic record type construction.
 # @TEST-EXEC: zeek %INPUT > output
 # @TEST-EXEC: btest-diff output
 
