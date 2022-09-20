@@ -181,7 +181,7 @@ if(PostgreSQL_LIBRARY)
 else()
   __postgresql_find_library(PostgreSQL_LIBRARY_RELEASE ${PostgreSQL_LIBRARY_TO_FIND})
   __postgresql_find_library(PostgreSQL_LIBRARY_DEBUG ${PostgreSQL_LIBRARY_TO_FIND}d)
-  include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)
+  include(SelectLibraryConfigurations)
   select_library_configurations(PostgreSQL)
   mark_as_advanced(PostgreSQL_LIBRARY_RELEASE PostgreSQL_LIBRARY_DEBUG)
   if(PostgreSQL_LIBRARY_RELEASE)
@@ -244,7 +244,7 @@ if (PostgreSQL_INCLUDE_DIR)
 endif()
 
 # Did we find anything?
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(PostgreSQL
                                   REQUIRED_VARS PostgreSQL_LIBRARY PostgreSQL_INCLUDE_DIR PostgreSQL_TYPE_INCLUDE_DIR
                                   VERSION_VAR PostgreSQL_VERSION_STRING)
