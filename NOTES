@@ -6,3 +6,6 @@
   when ( local c = pq_get_from_pool(pool) ) {
   }
 
+
+* Can specify synchronous_commit = 'off' at connection time in connection string
+  https://www.percona.com/blog/2020/08/21/postgresql-synchronous_commit-options-and-synchronous-standby-replication/
