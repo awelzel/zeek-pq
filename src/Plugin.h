@@ -33,7 +33,7 @@ class PQConn : public zeek::OpaqueVal, zeek::iosource::IOSource
 public:
 	PQConn(PGconn* pg_conn);
 
-	virtual ~PQConn() { }
+	virtual ~PQConn();
 
 	int SendQuery(const char* command);
 	int SendQueryParams(const char* command, zeek::ValPList& args);

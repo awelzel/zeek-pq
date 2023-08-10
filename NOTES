@@ -6,6 +6,12 @@
   when ( local c = pq_get_from_pool(pool) ) {
   }
 
+* Using the same connection for two queries is invalid usage.
+  * That's probably no different in other languages, but the
+    asynchronous / when usage doesn't make it easy to avoid it.
+  * Maybe pooling and careful usage is the answer?
+  * How does JS solve this?
+
 
 * Can specify synchronous_commit = 'off' at connection time in connection string
   https://www.percona.com/blog/2020/08/21/postgresql-synchronous_commit-options-and-synchronous-standby-replication/

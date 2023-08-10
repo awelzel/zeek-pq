@@ -146,7 +146,19 @@ void Plugin::InitPostScript()
 	opaque_of_pq_result = zeek::make_intrusive<zeek::OpaqueType>("PQ::Result");
 	}
 
-PQConn::PQConn(PGconn* pg_conn) : OpaqueVal(opaque_of_pq_conn), pg_conn(pg_conn, PQfinish) { }
+PQConn::PQConn(PGconn* pg_conn) : OpaqueVal(opaque_of_pq_conn), pg_conn(pg_conn, PQfinish) { 
+	PLUGIN_DBG_LOG(plugin, "Registering %s",  Tag());
+	int fd = PQsocket(pg_conn);
+	zeek::iosource_mgr->RegisterFd(fd, this);
+
+
+}
+PQConn::~PQConn()
+	{
+	PLUGIN_DBG_LOG(plugin, "Unregistering %s",  Tag());
+	int fd = PQsocket(pg_conn.get());
+	zeek::iosource_mgr->UnregisterFd(fd, this);
+	}
 
 const char* PQConn::Tag()
 	{
@@ -198,8 +210,6 @@ void PQConn::Process()
 	trigger = nullptr;
 	trigger_assoc = nullptr;
 
-	int fd = PQsocket(pg_conn.get());
-	zeek::iosource_mgr->UnregisterFd(fd, this);
 	}
 
 int PQConn::SendQuery(const char* command)
@@ -272,9 +282,6 @@ void PQConn::ExpectResult(zeek::detail::trigger::Trigger* arg_trigger,
 
 	trigger = arg_trigger;
 	trigger_assoc = arg_trigger_assoc;
-
-	int fd = PQsocket(pg_conn.get());
-	zeek::iosource_mgr->RegisterFd(fd, this);
 
 	Process();
 	}
